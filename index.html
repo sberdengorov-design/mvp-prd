@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ИИ-аналитик</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0f1115">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --text:#16181d; --muted:#6b7280;
+    --border:#e4e6eb; --accent:#4f7cff; --accent-soft:#eef2ff; --danger:#e5484d;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f1115; --panel:#181b21; --text:#e8eaed; --muted:#9aa1ad;
+      --border:#262a33; --accent:#6d8dff; --accent-soft:#1c2440; --danger:#ff6b6f;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:10;}
+  header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:8px;}
+  .container{max-width:1100px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:20px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .panel h2{font-size:14px;margin:0 0 12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .dropzone{border:2px dashed var(--border);border-radius:var(--radius);padding:36px 20px;text-align:center;cursor:pointer;transition:.15s;color:var(--muted);}
+  .dropzone.drag{border-color:var(--accent);background:var(--accent-soft);}
+  .dropzone i{font-size:30px;display:block;margin-bottom:8px;}
+  .filelist{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .filechip{display:flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);padding:5px 10px;border-radius:20px;font-size:13px;}
+  .filechip button{border:none;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:760px){.grid{grid-template-columns:1fr;}}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .stat{background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:8px 12px;font-size:13px;}
+  .chart-toggle{display:flex;gap:6px;margin-bottom:10px;}
+  .chart-toggle button{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;}
+  .chart-toggle button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  select, input[type=text], input[type=password], textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+  th{background:var(--accent-soft);color:var(--accent);position:sticky;top:0;}
+  .tablewrap{max-height:320px;overflow:auto;border-radius:10px;border:1px solid var(--border);}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+  .preset{border:1px solid var(--border);background:var(--bg);color:var(--text);padding:7px 12px;border-radius:20px;font-size:13px;cursor:pointer;}
+  .preset:hover{border-color:var(--accent);color:var(--accent);}
+  .btn{background:var(--accent);color:#fff;border:none;padding:10px 18px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:600;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+  .ai-output{margin-top:14px;line-height:1.6;font-size:14px;white-space:pre-wrap;}
+  .ai-output h3{margin:14px 0 6px;font-size:15px;}
+  .hint{color:var(--muted);font-size:13px;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .modal{background:var(--panel);border-radius:var(--radius);padding:24px;width:90%;max-width:420px;border:1px solid var(--border);}
+  .modal h2{margin-top:0;}
+  .row{display:flex;gap:8px;margin-top:14px;}
+  .badge{font-size:11px;background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:2px 6px;margin-left:6px;}
+  .loader{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:20px;}
+  a{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><i class="ti ti-chart-dots-3"></i> ИИ-аналитик</h1>
+  <button class="btn secondary" id="apiKeyBtn" style="padding:7px 12px;font-size:13px;">
+    <i class="ti ti-key"></i> API-ключ
+  </button>
+</header>
+
+<div class="container">
+
+  <div class="panel">
+    <h2>Загрузка данных</h2>
+    <div class="dropzone" id="dropzone">
+      <i class="ti ti-cloud-upload"></i>
+      Перетащите CSV / изображение / текстовый файл сюда,<br>
+      нажмите для выбора или вставьте скрин (Ctrl+V)
+      <input type="file" id="fileInput" multiple accept=".csv,.txt,.json,.md,image/*" style="display:none;">
+    </div>
+    <div class="filelist" id="filelist"></div>
+  </div>
+
+  <div class="grid" id="dataSection" style="display:none;">
+    <div class="panel">
+      <h2>График</h2>
+      <div class="stats" id="stats"></div>
+      <div class="chart-toggle" id="chartToggle">
+        <button data-type="line" class="active">Линия</button>
+        <button data-type="bar">Столбцы</button>
+        <button data-type="pie">Круговая</button>
+      </div>
+      <select id="columnSelect" multiple style="height:70px;margin-bottom:10px;"></select>
+      <canvas id="chart" height="220"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Таблица данных <span class="hint" id="rowCount"></span></h2>
+      <div class="tablewrap"><table id="dataTable"></table></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>AI-анализ <span class="badge">Gemini Flash</span></h2>
+    <div class="presets" id="presets">
+      <div class="preset" data-prompt="Сделай полный анализ данных: ключевые показатели, паттерны, выводы.">Полный анализ</div>
+      <div class="preset" data-prompt="Найди аномалии и выбросы в данных, объясни почему они выделяются.">Аномалии и выбросы</div>
+      <div class="preset" data-prompt="Опиши тренды и динамику изменений в данных.">Тренды и динамика</div>
+      <div class="preset" data-prompt="Дай конкретные рекомендации на основе этих данных.">Рекомендации</div>
+      <div class="preset" data-prompt="Опиши, что изображено на скриншоте, и какие выводы можно сделать.">Описать скрин</div>
+    </div>
+    <textarea id="promptInput" rows="3" placeholder="Свой вопрос к AI..."></textarea>
+    <div class="row">
+      <button class="btn" id="analyzeBtn"><i class="ti ti-sparkles"></i> Анализировать</button>
+    </div>
+    <div class="ai-output" id="aiOutput"></div>
+  </div>
+
+</div>
+
+<footer>ИИ-аналитик · работает локально в браузере · ключ Gemini хранится только в localStorage</footer>
+
+<div class="modal-overlay" id="apiKeyModal" style="display:none;">
+  <div class="modal">
+    <h2>Gemini API-ключ</h2>
+    <p class="hint">Получите бесплатный ключ на <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a>. Ключ хранится только в вашем браузере.</p>
+    <input type="password" id="apiKeyInput" placeholder="AIza...">
+    <div class="row">
+      <button class="btn" id="apiKeySave">Сохранить</button>
+      <button class="btn secondary" id="apiKeyCancel">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  csvData: null,       // {columns:[], rows:[[]]}
+  images: [],          // {name, base64, mime}
+  texts: [],           // {name, content}
+  chart: null,
+  chartType: 'line',
+};
+
+const els = {
+  dropzone: document.getElementById('dropzone'),
+  fileInput: document.getElementById('fileInput'),
+  filelist: document.getElementById('filelist'),
+  dataSection: document.getElementById('dataSection'),
+  stats: document.getElementById('stats'),
+  columnSelect: document.getElementById('columnSelect'),
+  chartCanvas: document.getElementById('chart'),
+  chartToggle: document.getElementById('chartToggle'),
+  dataTable: document.getElementById('dataTable'),
+  rowCount: document.getElementById('rowCount'),
+  promptInput: document.getElementById('promptInput'),
+  analyzeBtn: document.getElementById('analyzeBtn'),
+  aiOutput: document.getElementById('aiOutput'),
+  presets: document.getElementById('presets'),
+  apiKeyBtn: document.getElementById('apiKeyBtn'),
+  apiKeyModal: document.getElementById('apiKeyModal'),
+  apiKeyInput: document.getElementById('apiKeyInput'),
+  apiKeySave: document.getElementById('apiKeySave'),
+  apiKeyCancel: document.getElementById('apiKeyCancel'),
+};
+
+// ---------- API key ----------
+function getApiKey(){ return localStorage.getItem('gemini_api_key') || ''; }
+function setApiKey(k){ localStorage.setItem('gemini_api_key', k); }
+
+els.apiKeyBtn.onclick = () => { els.apiKeyInput.value = getApiKey(); els.apiKeyModal.style.display='flex'; };
+els.apiKeyCancel.onclick = () => els.apiKeyModal.style.display='none';
+els.apiKeySave.onclick = () => {
+  setApiKey(els.apiKeyInput.value.trim());
+  els.apiKeyModal.style.display='none';
+};
+if (!getApiKey()) setTimeout(()=>els.apiKeyModal.style.display='flex', 400);
+
+// ---------- File handling ----------
+['dragenter','dragover'].forEach(evt => els.dropzone.addEventListener(evt, e => {
+  e.preventDefault(); els.dropzone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(evt => els.dropzone.addEventListener(evt, e => {
+  e.preventDefault(); els.dropzone.classList.remove('drag');
+}));
+els.dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+els.dropzone.addEventListener('click', () => els.fileInput.click());
+els.fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+document.addEventListener('paste', e => {
+  const items = e.clipboardData.items;
+  for (const item of items){
+    if (item.type.startsWith('image/')){
+      const file = item.getAsFile();
+      handleFiles([file]);
+    }
+  }
+});
+
+function handleFiles(fileList){
+  [...fileList].forEach(file => {
+    addChip(file.name);
+    if (file.type.startsWith('image/')){
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.images.push({name:file.name, base64: reader.result.split(',')[1], mime:file.type});
+      };
+      reader.readAsDataURL(file);
+    } else if (file.name.endsWith('.csv')){
+      Papa.parse(file, {
+        header:true, skipEmptyLines:true, dynamicTyping:true,
+        complete: (res) => {
+          state.csvData = { columns: res.meta.fields, rows: res.data };
+          renderData();
+        }
+      });
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => state.texts.push({name:file.name, content: reader.result});
+      reader.readAsText(file);
+    }
+  });
+}
+
+function addChip(name){
+  const chip = document.createElement('div');
+  chip.className = 'filechip';
+  chip.innerHTML = `<i class="ti ti-file"></i> ${name}`;
+  els.filelist.appendChild(chip);
+}
+
+// ---------- Data rendering ----------
+function renderData(){
+  if (!state.csvData) return;
+  els.dataSection.style.display = 'grid';
+  const { columns, rows } = state.csvData;
+
+  const numericCols = columns.filter(c => rows.some(r => typeof r[c] === 'number'));
+  els.columnSelect.innerHTML = numericCols.map(c => `<option value="${c}" selected>${c}</option>`).join('');
+
+  renderStats(numericCols, rows);
+  renderTable(columns, rows);
+  renderChart();
+}
+
+function renderStats(numericCols, rows){
+  els.stats.innerHTML = numericCols.slice(0,4).map(c => {
+    const vals = rows.map(r => r[c]).filter(v => typeof v === 'number');
+    if (!vals.length) return '';
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const avg = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2);
+    return `<div class="stat">${c}: min ${min} · max ${max} · avg ${avg}</div>`;
+  }).join('');
+}
+
+function renderTable(columns, rows){
+  const head = '<tr>' + columns.map(c=>`<th>${c}</th>`).join('') + '</tr>';
+  const body = rows.slice(0,50).map(r => '<tr>' + columns.map(c=>`<td>${r[c] ?? ''}</td>`).join('') + '</tr>').join('');
+  els.dataTable.innerHTML = head + body;
+  els.rowCount.textContent = `(показано ${Math.min(50,rows.length)} из ${rows.length})`;
+}
+
+function getSelectedColumns(){
+  return [...els.columnSelect.selectedOptions].map(o => o.value);
+}
+
+function renderChart(){
+  if (!state.csvData) return;
+  const { rows } = state.csvData;
+  const cols = getSelectedColumns();
+  if (!cols.length) return;
+
+  const labels = rows.map((r,i) => r[Object.keys(r)[0]] ?? i);
+  const datasets = cols.map((c, idx) => ({
+    label: c,
+    data: rows.map(r => r[c]),
+    borderColor: `hsl(${idx*70+200},70%,55%)`,
+    backgroundColor: `hsla(${idx*70+200},70%,55%,.35)`,
+  }));
+
+  if (state.chart) state.chart.destroy();
+  state.chart = new Chart(els.chartCanvas, {
+    type: state.chartType,
+    data: state.chartType === 'pie'
+      ? { labels: cols, datasets: [{ data: cols.map(c => rows.reduce((s,r)=>s+(typeof r[c]==='number'?r[c]:0),0)), backgroundColor: cols.map((_,i)=>`hsl(${i*70+200},70%,55%)`) }] }
+      : { labels, datasets },
+    options: { responsive:true, plugins:{legend:{position:'bottom'}} }
+  });
+}
+
+els.columnSelect.addEventListener('change', renderChart);
+els.chartToggle.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  [...els.chartToggle.children].forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.chartType = btn.dataset.type;
+  renderChart();
+});
+
+// ---------- Presets ----------
+els.presets.addEventListener('click', e => {
+  const p = e.target.closest('.preset');
+  if (!p) return;
+  els.promptInput.value = p.dataset.prompt;
+});
+
+// ---------- AI analysis ----------
+els.analyzeBtn.addEventListener('click', runAnalysis);
+
+async function runAnalysis(){
+  const apiKey = getApiKey();
+  if (!apiKey){ els.apiKeyModal.style.display='flex'; return; }
+
+  const userPrompt = els.promptInput.value.trim() || 'Сделай полный анализ загруженных данных.';
+  els.analyzeBtn.disabled = true;
+  els.aiOutput.innerHTML = '<span class="loader"></span> Анализирую...';
+
+  const parts = [];
+  let contextText = `Запрос пользователя: ${userPrompt}\n\n`;
+
+  if (state.csvData){
+    const { columns, rows } = state.csvData;
+    const sample = rows.slice(0,80);
+    contextText += `Данные CSV. Колонки: ${columns.join(', ')}.\nСтрок: ${rows.length} (показаны первые ${sample.length}).\n`;
+    contextText += sample.map(r => columns.map(c=>r[c]).join(',')).join('\n');
+    contextText += '\n\n';
+  }
+  state.texts.forEach(t => { contextText += `Файл ${t.name}:\n${t.content.slice(0,4000)}\n\n`; });
+
+  contextText += '\nСформируй структурированный ответ в формате: Executive Summary → Инсайты → Анализ → Риски → Рекомендации.';
+  parts.push({ text: contextText });
+  state.images.forEach(img => parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } }));
+
+  try{
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ contents:[{ parts }] })
+    });
+    const json = await resp.json();
+    if (json.error) throw new Error(json.error.message);
+    const text = json.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n') || 'Пустой ответ от AI.';
+    els.aiOutput.innerHTML = formatMarkdown(text);
+  } catch(err){
+    els.aiOutput.innerHTML = `<span style="color:var(--danger)">Ошибка: ${err.message}</span>`;
+  } finally {
+    els.analyzeBtn.disabled = false;
+  }
+}
+
+function formatMarkdown(text){
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.*)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.*)$/gm,'<h3>$1</h3>')
+    .replace(/^# (.*)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
+    .replace(/\n/g,'<br>');
+}
+
+// ---------- PWA ----------
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
